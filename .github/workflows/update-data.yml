@@ -1,0 +1,48 @@
+name: Update league data
+
+on:
+  schedule:
+    # Times are UTC. Tuesday after Monday Night Football, and Friday after Thursday's game.
+    - cron: "17 10 * * 2"
+    - cron: "17 10 * * 5"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: python3 -m pip install -r requirements.txt
+
+      - name: Fetch league data from ESPN
+        env:
+          ESPN_LEAGUE_ID: ${{ vars.ESPN_LEAGUE_ID }}
+          ESPN_YEAR: ${{ vars.ESPN_YEAR }}
+          ESPN_S2: ${{ secrets.ESPN_S2 }}
+          ESPN_SWID: ${{ secrets.ESPN_SWID }}
+        run: python3 fetch_league.py --out site/league_data.json
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
