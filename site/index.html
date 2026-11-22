@@ -98,6 +98,10 @@ summary{cursor:pointer;font-weight:600}
 .why{font-size:12px;color:var(--muted)}
 .empty{padding:24px;text-align:center;color:var(--muted)}
 .note{font-size:12px;color:var(--muted)}
+.tipi{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:4px;border:1px solid currentColor;border-radius:50%;font:600 10px/1 var(--body);text-transform:none;letter-spacing:0;color:var(--muted);cursor:help;vertical-align:1px;opacity:.7;position:relative}
+.tipi:hover,.tipi:focus-visible{opacity:1;color:var(--accent);outline:none}
+.tipi::before{content:"";position:absolute;inset:-8px;}
+#tip{position:fixed;z-index:50;max-width:min(260px,calc(100vw - 32px));padding:7px 10px;border-radius:6px;background:var(--fg);color:var(--bg);font:400 13px/1.35 var(--body);text-transform:none;letter-spacing:0;white-space:normal;box-shadow:0 4px 14px rgba(0,0,0,.25);pointer-events:none}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -159,31 +163,34 @@ const ls = { get(k){try{return localStorage.getItem(k)}catch(e){return null}}, s
 
 // Stat definitions. base: summed from game stats; ratio: computed from window totals.
 const ST = {
-  fpts:{label:"FPts",get:w=>w.pts||0,dec:1},
-  passAtt:{label:"Pass Att",key:"passingAttempts"},
-  cmp:{label:"Cmp",key:"passingCompletions"},
-  passYds:{label:"Pass Yds",key:"passingYards"},
-  passTD:{label:"Pass TD",key:"passingTouchdowns"},
-  int:{label:"INT",key:"passingInterceptions",low:true},
-  rushAtt:{label:"Rush Att",key:"rushingAttempts"},
-  rushYds:{label:"Rush Yds",key:"rushingYards"},
-  rushTD:{label:"Rush TD",key:"rushingTouchdowns"},
-  tgt:{label:"Targets",key:"receivingTargets"},
-  rec:{label:"Rec",key:"receivingReceptions"},
-  recYds:{label:"Rec Yds",key:"receivingYards"},
-  recTD:{label:"Rec TD",key:"receivingTouchdowns"},
-  yac:{label:"YAC",key:"receivingYardsAfterCatch"},
-  td:{label:"Rush+Rec TD",get:w=>(w.stats?.rushingTouchdowns||0)+(w.stats?.receivingTouchdowns||0)},
-  touches:{label:"Touches",get:w=>(w.stats?.rushingAttempts||0)+(w.stats?.receivingReceptions||0)},
-  opps:{label:"Opportunities",get:w=>(w.stats?.rushingAttempts||0)+(w.stats?.receivingTargets||0),help:"Rush att + targets"},
-  ypc:{label:"Yds/Carry",ratio:["rushYds","rushAtt"]},
-  ypt:{label:"Yds/Target",ratio:["recYds","tgt"]},
-  catchPct:{label:"Catch %",ratio:["rec","tgt"],pct:true},
-  cmpPct:{label:"Cmp %",ratio:["cmp","passAtt"],pct:true},
-  fptsTr:{label:"FPts trend",trend:"fpts",help:"Last 3 games per game minus season per game"},
-  oppsTr:{label:"Opp trend",trend:"opps",help:"Rush att + targets per game: last 3 minus season"},
-  tgtTr:{label:"Tgt trend",trend:"tgt",help:"Targets per game: last 3 minus season"},
+  fpts:{label:"FPts",get:w=>w.pts||0,dec:1,help:"Fantasy points under your league's scoring settings (from ESPN)"},
+  passAtt:{label:"Pass Att",key:"passingAttempts",help:"Pass attempts"},
+  cmp:{label:"Cmp",key:"passingCompletions",help:"Completed passes"},
+  passYds:{label:"Pass Yds",key:"passingYards",help:"Passing yards"},
+  passTD:{label:"Pass TD",key:"passingTouchdowns",help:"Passing touchdowns"},
+  int:{label:"INT",key:"passingInterceptions",low:true,help:"Interceptions thrown. Lower is better"},
+  rushAtt:{label:"Rush Att",key:"rushingAttempts",help:"Rushing attempts (carries)"},
+  rushYds:{label:"Rush Yds",key:"rushingYards",help:"Rushing yards"},
+  rushTD:{label:"Rush TD",key:"rushingTouchdowns",help:"Rushing touchdowns"},
+  tgt:{label:"Targets",key:"receivingTargets",help:"Passes thrown to the player, caught or not"},
+  rec:{label:"Rec",key:"receivingReceptions",help:"Receptions (catches)"},
+  recYds:{label:"Rec Yds",key:"receivingYards",help:"Receiving yards"},
+  recTD:{label:"Rec TD",key:"receivingTouchdowns",help:"Receiving touchdowns"},
+  yac:{label:"YAC",key:"receivingYardsAfterCatch",help:"Receiving yards gained after the catch"},
+  td:{label:"Rush+Rec TD",get:w=>(w.stats?.rushingTouchdowns||0)+(w.stats?.receivingTouchdowns||0),help:"Rushing + receiving touchdowns"},
+  touches:{label:"Touches",get:w=>(w.stats?.rushingAttempts||0)+(w.stats?.receivingReceptions||0),help:"Rush attempts + receptions: times the player had the ball"},
+  opps:{label:"Opportunities",get:w=>(w.stats?.rushingAttempts||0)+(w.stats?.receivingTargets||0),help:"Rush attempts + targets: chances to get the ball, a volume measure"},
+  ypc:{label:"Yds/Carry",ratio:["rushYds","rushAtt"],help:"Rushing yards ÷ rush attempts"},
+  ypt:{label:"Yds/Target",ratio:["recYds","tgt"],help:"Receiving yards ÷ targets"},
+  catchPct:{label:"Catch %",ratio:["rec","tgt"],pct:true,help:"Receptions ÷ targets"},
+  cmpPct:{label:"Cmp %",ratio:["cmp","passAtt"],pct:true,help:"Completions ÷ pass attempts"},
+  fptsTr:{label:"FPts trend",trend:"fpts",help:"FPts per game: last 3 games minus season. Positive = rising"},
+  oppsTr:{label:"Opp trend",trend:"opps",help:"Rush att + targets per game: last 3 minus season. Positive = rising"},
+  tgtTr:{label:"Tgt trend",trend:"tgt",help:"Targets per game: last 3 minus season. Positive = rising"},
 };
+const HELP = {name:"Player name, position and NFL team",owner:"MINE = your team, abbreviation = other team, FA/W = free agent or on waivers",g:"Games played in the selected time window",proj:"ESPN projected fantasy points for the current week"};
+const tip=k=>esc(ST[k]?.help||HELP[k]||"");
+const tipI=k=>tip(k)?`<span class="tipi" role="button" tabindex="0" aria-label="Info" data-tip="${tip(k)}">i</span>`:"";
 const BASE = Object.keys(ST).filter(k=>!ST[k].ratio&&!ST[k].trend);
 const COLS = {
   ALL:["fpts","fptsTr","rushAtt","rushYds","tgt","rec","recYds","td","opps","oppsTr"],
@@ -308,8 +315,8 @@ function render(){
   const key=st.sort;
   const sv=r=> key==="name"? r.p.name : key==="g"? r.a.g : key==="proj"? (r.p.weeks[D.meta.currentWeek]?.proj??-1) : (val(r.a,key,st.mode)??-Infinity);
   list.sort((x,y)=>{const a=sv(x),b=sv(y); const c= typeof a==="string"? a.localeCompare(b) : a-b; return st.desc?-c:c;});
-  const th=(k,l,cls="")=>`<th class="${cls} ${st.sort===k?"sorted":""}" aria-sort="${st.sort===k?(st.desc?"descending":"ascending"):"none"}"><button data-sort="${k}" title="${esc(ST[k]?.help||"")}">${l}${st.sort===k?(st.desc?" ▾":" ▴"):""}</button></th>`;
-  let h=`<thead><tr><th class="l" style="width:30px"><span class="lbl" aria-label="Compare">Cmp</span></th>${th("name","Player","l pcell")}<th class="l">Owner</th>${th("g","G")}${cols.map(k=>th(k,ST[k].label)).join("")}${th("proj","Proj wk "+D.meta.currentWeek)}</tr></thead><tbody>`;
+  const th=(k,l,cls="")=>`<th class="${cls} ${st.sort===k?"sorted":""}" aria-sort="${st.sort===k?(st.desc?"descending":"ascending"):"none"}"><button data-sort="${k}">${l}${st.sort===k?(st.desc?" ▾":" ▴"):""}</button>${tipI(k)}</th>`;
+  let h=`<thead><tr><th class="l" style="width:30px"><span class="lbl" aria-label="Compare">Cmp</span></th>${th("name","Player","l pcell")}<th class="l">Owner${tipI("owner")}</th>${th("g","G")}${cols.map(k=>th(k,ST[k].label)).join("")}${th("proj","Proj wk "+D.meta.currentWeek)}</tr></thead><tbody>`;
   if(!list.length) h+=`<tr><td colspan="${cols.length+5}" class="empty">No players match these filters.</td></tr>`;
   h+=list.slice(0,400).map(({p,a})=>{
     const proj=p.weeks[D.meta.currentWeek]?.proj;
@@ -336,10 +343,10 @@ function renderCompare(){
   let h=`<thead><tr><th class="l">${st.mode==="pg"?"Per game":"Total"}</th>${ps.map((p,i)=>`<th colspan="${wins.length}" class="l"><span class="sw" style="background:${color(i)}"></span>${esc(p.name)} ${ownerPill(p)}</th>`).join("")}</tr>
     <tr><th class="l"></th>${ps.map(()=>wins.map(w=>`<th>${w[1]}</th>`).join("")).join("")}</tr></thead><tbody>`;
   const aggs=ps.map(p=>Object.fromEntries(wins.map(([w])=>[w,aggregate(p,w)])));
-  h+=`<tr><td class="l">Games</td>${aggs.map(a=>wins.map(([w])=>`<td>${a[w].g}</td>`).join("")).join("")}</tr>`;
+  h+=`<tr><td class="l">Games${tipI("g")}</td>${aggs.map(a=>wins.map(([w])=>`<td>${a[w].g}</td>`).join("")).join("")}</tr>`;
   keys.forEach(k=>{
     const vals=aggs.map(a=>wins.map(([w])=>val(a[w],k,st.mode)));
-    h+=`<tr><td class="l">${ST[k].label}</td>`+vals.map((pv)=>pv.map((v,wi)=>{
+    h+=`<tr><td class="l">${ST[k].label}${tipI(k)}</td>`+vals.map((pv)=>pv.map((v,wi)=>{
       const col=vals.map(x=>x[wi]).filter(x=>x!=null);
       const best=ps.length>1&&v!=null&&col.length>1&&v===(ST[k].low?Math.min(...col):Math.max(...col));
       return `<td class="${best?"best":""}">${fmt(v,k,st.mode)}</td>`;}).join("")).join("")+"</tr>";
@@ -370,7 +377,7 @@ function drawChart(ps){
 function renderLogs(ps){
   $("logs").innerHTML=ps.map(p=>{
     const cols=(COLS[p.pos]||COLS.ALL).filter(k=>!ST[k].trend); const wks=Object.keys(p.weeks).map(Number).filter(n=>p.weeks[n].pts!=null||p.weeks[n].played!=null).sort((a,b)=>b-a);
-    return `<details><summary>Game log · ${esc(p.name)}</summary><div class="tablebox" style="margin-top:8px"><table><thead><tr><th class="l">Wk</th><th class="l">Opp</th>${cols.map(k=>`<th>${ST[k].label}</th>`).join("")}<th>Proj</th></tr></thead><tbody>${
+    return `<details><summary>Game log · ${esc(p.name)}</summary><div class="tablebox" style="margin-top:8px"><table><thead><tr><th class="l">Wk</th><th class="l">Opp</th>${cols.map(k=>`<th>${ST[k].label}${tipI(k)}</th>`).join("")}<th>Proj${tipI("proj")}</th></tr></thead><tbody>${
       wks.map(n=>{const w=p.weeks[n]; const one={g:w.played?1:0,t:Object.fromEntries(BASE.map(k=>[k,weekVal(w,k)]))};
         return `<tr><td class="l">${n}</td><td class="l">${esc(w.opp||"")}</td>${w.played?cols.map(k=>`<td>${fmt(val(one,k,"tot"),k,"tot")}</td>`).join(""):`<td colspan="${cols.length}" class="l note">Did not play</td>`}<td>${w.proj!=null?w.proj.toFixed(1):"–"}</td></tr>`;}).join("")
     }</tbody></table></div></details>`;}).join("");
@@ -410,6 +417,22 @@ function renderIdeas(){
 document.addEventListener("click",e=>{const b=e.target.closest("[data-cmp]"); if(!b) return; const id=+b.dataset.cmp;
   if(!st.sel.includes(id)){ if(st.sel.length>=4){flash("You can compare up to 4 players. Remove one first.");return;} st.sel.push(id);}
   render(); $("cmpPanel").scrollIntoView({behavior:"smooth",block:"start"});});
+
+// Info tooltips: hover with a mouse, tap or Enter elsewhere
+const tipEl=document.createElement("div"); tipEl.id="tip"; tipEl.setAttribute("role","tooltip"); tipEl.hidden=true; document.body.append(tipEl);
+let tipFor=null;
+function showTip(el){
+  tipFor=el; tipEl.textContent=el.dataset.tip; tipEl.hidden=false;
+  const r=el.getBoundingClientRect(), w=tipEl.offsetWidth, h=tipEl.offsetHeight;
+  tipEl.style.left=Math.max(16,Math.min(r.left+r.width/2-w/2,innerWidth-w-16))+"px";
+  tipEl.style.top=(r.bottom+6+h>innerHeight? r.top-h-6 : r.bottom+6)+"px";
+}
+function hideTip(){tipEl.hidden=true; tipFor=null;}
+document.addEventListener("pointerover",e=>{if(e.pointerType!=="mouse") return; const t=e.target.closest("[data-tip]"); if(t) showTip(t);});
+document.addEventListener("pointerout",e=>{if(e.pointerType==="mouse"&&e.target.closest("[data-tip]")&&!e.relatedTarget?.closest?.("[data-tip]")) hideTip();});
+document.addEventListener("click",e=>{const t=e.target.closest("[data-tip]"); if(!t){hideTip(); return;} e.stopImmediatePropagation(); tipFor===t&&e.pointerType!=="mouse"?hideTip():showTip(t);},true);
+document.addEventListener("keydown",e=>{const t=e.target.closest?.("[data-tip]"); if(t&&(e.key==="Enter"||e.key===" ")){e.preventDefault(); tipFor===t?hideTip():showTip(t);} else if(e.key==="Escape") hideTip();});
+addEventListener("scroll",hideTip,true); addEventListener("resize",hideTip);
 
 // Events
 document.addEventListener("click",e=>{
